@@ -27,7 +27,7 @@ resource "azurerm_virtual_network" "vnet" {
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
   address_space       = ["10.0.0.0/16"]
-  dns_servers = []  # Empty means use Azure DNS
+  dns_servers         = []  # Use Azure DNS
 }
 
 resource "azurerm_subnet" "db_subnet" {
@@ -71,7 +71,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "dns_link" {
   resource_group_name   = azurerm_resource_group.rg.name
   private_dns_zone_name = azurerm_private_dns_zone.postgres.name
   virtual_network_id    = azurerm_virtual_network.vnet.id
-  
+
   depends_on = [
     azurerm_virtual_network.vnet,
     azurerm_subnet.db_subnet,
@@ -94,6 +94,10 @@ resource "azurerm_postgresql_flexible_server" "db" {
   private_dns_zone_id    = azurerm_private_dns_zone.postgres.id
   public_network_access_enabled = false
   zone                   = "1"
+
+  depends_on = [
+    azurerm_private_dns_zone_virtual_network_link.dns_link
+  ]
 }
 
 resource "azurerm_postgresql_flexible_server_database" "appdb" {
@@ -132,8 +136,8 @@ resource "azurerm_linux_web_app" "web_app" {
   }
 
   site_config {
-    always_on = true
-    vnet_route_all_enabled = true  
+    always_on             = true
+    vnet_route_all_enabled = true
 
     application_stack {
       docker_image_name        = var.image_name
@@ -153,7 +157,7 @@ resource "azurerm_linux_web_app" "web_app" {
   }
 }
 
-# Connect Web App to VNet (separate subnet)
+# Connect Web App to VNet
 resource "azurerm_app_service_virtual_network_swift_connection" "webapp_vnet" {
   app_service_id = azurerm_linux_web_app.web_app.id
   subnet_id      = azurerm_subnet.app_subnet.id
