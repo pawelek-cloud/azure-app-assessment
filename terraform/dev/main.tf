@@ -71,7 +71,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "dns_link" {
   resource_group_name   = azurerm_resource_group.rg.name
   private_dns_zone_name = azurerm_private_dns_zone.postgres.name
   virtual_network_id    = azurerm_virtual_network.vnet.id
-  registration_enabled = true
+  registration_enabled  = true
 
   depends_on = [
     azurerm_virtual_network.vnet,
@@ -107,6 +107,15 @@ resource "azurerm_postgresql_flexible_server_database" "appdb" {
   charset   = "UTF8"
 }
 
+# Explicit A record to guarantee DNS resolution
+resource "azurerm_private_dns_a_record" "postgres_record" {
+  name                = azurerm_postgresql_flexible_server.db.name
+  zone_name           = azurerm_private_dns_zone.postgres.name
+  resource_group_name = azurerm_resource_group.rg.name
+  ttl                 = 300
+  records             = ["10.0.1.4"] # replace with actual private IP of your server
+}
+
 # Azure Container Registry
 resource "azurerm_container_registry" "acr" {
   name                = "${local.environment}acr${local.suffix}"
@@ -137,7 +146,7 @@ resource "azurerm_linux_web_app" "web_app" {
   }
 
   site_config {
-    always_on             = true
+    always_on              = true
     vnet_route_all_enabled = true
 
     application_stack {
