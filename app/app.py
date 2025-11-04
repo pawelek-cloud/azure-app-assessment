@@ -31,11 +31,6 @@ def init_db():
     cur.close()
     conn.close()
 
-@app.before_first_request
-def setup():
-    # Ensure table exists before serving any requests
-    init_db()
-
 @app.route("/", methods=["GET", "POST"])
 def index():
     conn = get_connection()
@@ -62,6 +57,6 @@ def db_check():
         return f"Database connection failed: {str(e)}", 500
 
 if __name__ == "__main__":
-    # Ensure table exists even if running locally
+    # Ensure table exists before serving requests
     init_db()
     app.run(host="0.0.0.0", port=8081)
