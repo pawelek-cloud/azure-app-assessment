@@ -1,0 +1,122 @@
+name: Deploy Azure App
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy (e.g. dev, staging, prod)"
+        required: true
+        default: "dev"
+      db_name:
+        description: "Name of the PostgreSQL database"
+        required: true
+        default: "testdb"
+      image_name:
+        description: "Docker image name with tag (e.g. azure-app:dev)"
+        required: true
+        default: "azure-app:dev"
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform/${{ github.event.inputs.environment }}
+
+      - name: Terraform Apply
+        run: |
+          terraform apply -auto-approve \
+            -var="subscription_id=${{ env.ARM_SUBSCRIPTION_ID }}" \
+            -var="client_id=${{ env.ARM_CLIENT_ID }}" \
+            -var="client_secret=${{ env.ARM_CLIENT_SECRET }}" \
+            -var="tenant_id=${{ env.ARM_TENANT_ID }}" \
+            -var="db_admin=${{ secrets.DB_ADMIN }}" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="environment=${{ github.event.inputs.environment }}" \
+            -var="db_name=${{ github.event.inputs.db_name }}" \
+            -var="image_name=${{ github.event.inputs.image_name }}" \
+            -var-file="${{ github.event.inputs.environment }}.tfvars"
+        working-directory: terraform/${{ github.event.inputs.environment }}
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            -u $ARM_CLIENT_ID \
+            -p $ARM_CLIENT_SECRET \
+            --tenant $ARM_TENANT_ID
+
+      - name: Get Terraform Outputs
+        id: tf_outputs
+        run: |
+          ACR_NAME=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw acr_name)
+          APP_NAME=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw app_name)
+
+          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+
+      - name: Assign AcrPull Role to Web App
+        run: |
+          echo "Using ACR name: ${{ steps.tf_outputs.outputs.acr_name }}"
+          echo "Using Web App name: ${{ steps.tf_outputs.outputs.app_name }}"
+
+          ACR_ID=$(az acr show \
+            --name ${{ steps.tf_outputs.outputs.acr_name }} \
+            --resource-group "${{ github.event.inputs.environment }}-rg" \
+            --query id --output tsv)
+
+          PRINCIPAL_ID=$(az webapp show \
+            --name ${{ steps.tf_outputs.outputs.app_name }} \
+            --resource-group "${{ github.event.inputs.environment }}-rg" \
+            --query identity.principalId --output tsv)
+
+          az role assignment create \
+            --assignee $PRINCIPAL_ID \
+            --scope $ACR_ID \
+            --role "AcrPull"
+
+      - name: Log in to Azure Container Registry
+        run: |
+          ACR_LOGIN=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw acr_login_server)
+          ACR_USER=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw acr_username)
+          ACR_PASS=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw acr_password)
+          echo "Logging into ACR: $ACR_LOGIN"
+          echo "$ACR_PASS" | docker login "$ACR_LOGIN" -u "$ACR_USER" --password-stdin
+
+      - name: Set up Docker Buildx
+        run: docker buildx create --use
+
+      - name: Build and Push Docker Image
+        run: |
+          ACR_LOGIN=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw acr_login_server)
+          echo "ACR login server: $ACR_LOGIN"
+          docker buildx build --platform linux/amd64 \
+            --tag $ACR_LOGIN/${{ github.event.inputs.image_name }} \
+            --push .
+
+      - name: Restart Web App
+        run: |
+          APP_NAME=${{ steps.tf_outputs.outputs.app_name }}
+          az webapp restart --name $APP_NAME --resource-group "${{ github.event.inputs.environment }}-rg"
+
+      - name: Run Database Connectivity Test
+        run: |
+          APP_URL="https://$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw app_url)"
+          echo "Checking database connectivity at $APP_URL/db-check..."
+          curl --fail --silent --show-error "$APP_URL/db-check" | tee db_response.txt
+          grep -i "successful" db_response.txt || (echo "Database test failed" && exit 1)
+

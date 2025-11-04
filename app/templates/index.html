@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h1>Azure App Service + PostgreSQL Demo</h1>
+    <form method="POST">
+      <input type="text" name="name" placeholder="Enter a name" required />
+      <button type="submit">Save</button>
+    </form>
+    <h2>Stored Data:</h2>
+    <ul>
+      {% for row in rows %}
+        <li>{{ row[0] }} - {{ row[1] }}</li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>
+
