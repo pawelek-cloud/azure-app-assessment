@@ -181,3 +181,44 @@ resource "azurerm_role_assignment" "acr_pull" {
 
   depends_on = [azurerm_linux_web_app.web_app]
 }
+# Add this provider block
+provider "postgresql" {
+  host            = "${azurerm_postgresql_flexible_server.db.name}.privatelink.postgres.database.azure.com"
+  port            = 5432
+  database        = var.db_name
+  username        = "${var.db_admin}@${azurerm_postgresql_flexible_server.db.name}"
+  password        = var.db_password
+  sslmode         = "require"
+}
+
+# Ensure schema exists
+resource "postgresql_schema" "public" {
+  name     = "public"
+  database = var.db_name
+}
+
+# Create demo_table automatically
+resource "postgresql_table" "demo_table" {
+  name     = "demo_table"
+  schema   = postgresql_schema.public.name
+  database = var.db_name
+
+  owner = "${var.db_admin}@${azurerm_postgresql_flexible_server.db.name}"
+
+  column {
+    name = "id"
+    type = "serial"
+  }
+
+  column {
+    name = "name"
+    type = "text"
+  }
+
+  column {
+    name    = "created_at"
+    type    = "timestamp"
+    default = "now()"
+  }
+}
+
