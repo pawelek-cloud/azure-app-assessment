@@ -181,20 +181,3 @@ resource "azurerm_role_assignment" "acr_pull" {
 
   depends_on = [azurerm_linux_web_app.web_app]
 }
-resource "null_resource" "init_demo_table" {
-  provisioner "local-exec" {
-    command = <<EOT
-      PGPASSWORD=${var.db_password} psql \
-        -h ${azurerm_postgresql_flexible_server.db.name}.privatelink.postgres.database.azure.com \
-        -U ${var.db_admin}@${azurerm_postgresql_flexible_server.db.name} \
-        -d ${var.db_name} \
-        -c "CREATE TABLE IF NOT EXISTS demo_table (
-              id SERIAL PRIMARY KEY,
-              name TEXT NOT NULL,
-              created_at TIMESTAMP DEFAULT now()
-            );"
-    EOT
-  }
-
-  depends_on = [azurerm_postgresql_flexible_server_database.appdb]
-}
