@@ -160,7 +160,7 @@ resource "azurerm_linux_web_app" "web_app" {
   app_settings = {
     DB_HOST       = "${azurerm_postgresql_flexible_server.db.name}.privatelink.postgres.database.azure.com"
     DB_NAME       = var.db_name
-    DB_USER       = "${var.db_admin}@${azurerm_postgresql_flexible_server.db.name}"
+    DB_USER       = "${var.db_admin}"
     DB_PASS       = var.db_password
     DB_PORT       = "5432"
     WEBSITES_PORT = "8081"
