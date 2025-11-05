@@ -144,8 +144,8 @@ Also add the following secrets required by your Terraform and application:
 
 On push to `main`, GitHub Actions will:
 
-- Build and push Docker image to Azure Container Registry
 - Deploy infrastructure with Terraform
+- Build and push Docker image to Azure Container Registry
 - Deploy app to Azure App Service
 - Run database connection test
 
