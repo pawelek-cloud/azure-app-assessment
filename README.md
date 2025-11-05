@@ -157,6 +157,6 @@ You can specify environment, database name (PostgreSQL) and and Docker image nam
 
 ## Test
 
-Github Actions as last step runs the test to verify DB connection:
+GitHub Actions runs a test as the final step to verify the database connection.
 
 
