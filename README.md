@@ -153,7 +153,7 @@ You can specify the environment, database name (PostgreSQL), and Docker image na
 
 ## Environments
 
-dev, staging, and prod configurations are available in the GitHub Actions workflow to deploy the app to different environments.
+'dev', 'staging', and 'prod' configurations are available in the GitHub Actions workflow to deploy the app to different environments.
 
 ## Test
 
