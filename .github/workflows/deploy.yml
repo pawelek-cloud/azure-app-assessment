@@ -15,6 +15,7 @@ on:
         description: "Docker image name with tag (e.g. azure-app:dev)"
         required: true
         default: "azure-app:dev"
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -65,9 +66,11 @@ jobs:
         run: |
           ACR_NAME=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw acr_name)
           APP_NAME=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw app_name)
+          APP_URL=$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw app_url)
 
           echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
 
       - name: Assign AcrPull Role to Web App
         run: |
@@ -113,10 +116,33 @@ jobs:
           APP_NAME=${{ steps.tf_outputs.outputs.app_name }}
           az webapp restart --name $APP_NAME --resource-group "${{ github.event.inputs.environment }}-rg"
 
-      - name: Run Database Connectivity Test
+      - name: Wait for Web App and Run Connectivity Test
         run: |
-          APP_URL="https://$(terraform -chdir=terraform/${{ github.event.inputs.environment }} output -raw app_url)"
-          echo "Checking database connectivity at $APP_URL/db-check..."
-          curl --fail --silent --show-error "$APP_URL/db-check" | tee db_response.txt
-          grep -i "successful" db_response.txt || (echo "Database test failed" && exit 1)
+          APP_NAME=${{ steps.tf_outputs.outputs.app_name }}
+          RG_NAME="${{ github.event.inputs.environment }}-rg"
+          APP_URL=${{ steps.tf_outputs.outputs.app_url }}
 
+          echo "Waiting for Web App $APP_NAME in $RG_NAME to be Running..."
+          for i in {1..30}; do
+            STATE=$(az webapp show --name "$APP_NAME" --resource-group "$RG_NAME" --query "state" -o tsv)
+            echo "Current state: $STATE"
+            if [ "$STATE" = "Running" ]; then
+              echo "Web App is running!"
+              break
+            fi
+            echo "Not running yet, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Polling $APP_URL/db-check until it returns success..."
+          for i in {1..30}; do
+            if curl --silent --fail "$APP_URL/db-check" | grep -qi "successful"; then
+              echo "Database connectivity confirmed!"
+              exit 0
+            fi
+            echo "Attempt $i: not ready yet, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "App did not become healthy in time"
+          exit 1
