@@ -149,11 +149,11 @@ On push to `main`, GitHub Actions will:
 - Deploy app to Azure App Service
 - Run database connection test
 
-You can specify environment, database name (PostgreSQL) and and Docker image name with tag.
+You can specify the environment, database name (PostgreSQL), and Docker image name with tag.
 
 ## Environments
 
-- `dev`, `staging`, and `prod` configurations are available in `Github Actions` workflow run.
+dev, staging, and prod configurations are available in the GitHub Actions workflow to deploy the app to different environments.
 
 ## Test
 
