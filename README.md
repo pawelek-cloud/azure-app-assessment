@@ -20,7 +20,7 @@ This repository contains a simple web application deployed on Azure using Terraf
 - CI/CD pipeline with GitHub Actions
 - Azure deployment with private endpoint to database
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 azure-app-assessment/
